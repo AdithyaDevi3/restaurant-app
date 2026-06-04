@@ -49,7 +49,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
   const [selectedCuisine, setSelectedCuisine] = useState<string | null>(null);
   const [filterOpenNow, setFilterOpenNow] = useState(false);
 
-  // Score and rank restaurants
+  // Score and rank restaurants here
   const rankedRestaurants = useMemo(() => {
     let filtered = restaurants;
 
