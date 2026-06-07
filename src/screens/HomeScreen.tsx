@@ -53,7 +53,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
   const rankedRestaurants = useMemo(() => {
     let filtered = restaurants;
 
-    // Apply filters here 
+    // Apply filters here  
     if (selectedCuisine) {
       filtered = filtered.filter((r) =>
         r.cuisine
