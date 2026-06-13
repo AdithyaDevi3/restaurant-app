@@ -46,3 +46,7 @@ coverage/
 # Ignore package lock and package.json per user request
 package-lock.json
 package.json
+
+app.json
+
+.gitignore
