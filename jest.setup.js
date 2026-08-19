@@ -1,0 +1,1 @@
+// Intentionally left minimal for pure TypeScript unit tests.
