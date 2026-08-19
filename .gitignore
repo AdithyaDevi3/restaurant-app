@@ -13,6 +13,9 @@ dist/
 .env
 .env.*
 
+# Documentation (internal notes)
+documentation/
+
 # Logs
 npm-debug.log*
  yarn-debug.log*
