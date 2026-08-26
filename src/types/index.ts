@@ -1,6 +1,7 @@
 export interface Restaurant {
   id: string;
   name: string;
+  sourceUrl?: string;
   cuisine: string[];
   rating: number; // 0–5
   priceLevel: 1 | 2 | 3 | 4;
@@ -40,4 +41,28 @@ export interface ScoreBreakdown {
   preferenceScore: number;
   noveltyScore: number;
   priceScore: number;
+}
+
+export interface MenuItem {
+  id: string;
+  name: string;
+  description?: string;
+  price?: number;
+  currency?: string;
+  selected?: boolean;
+}
+
+export interface RestaurantMenu {
+  restaurantId: string;
+  sourceUrl: string;
+  items: MenuItem[];
+  lastSyncedAt: number;
+}
+
+export interface RestaurantMenuChoice {
+  restaurantId: string;
+  itemId: string;
+  itemName: string;
+  restaurantName: string;
+  createdAt: number;
 }

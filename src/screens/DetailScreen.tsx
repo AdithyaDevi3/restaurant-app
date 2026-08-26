@@ -9,11 +9,15 @@ import {
   TouchableOpacity,
   Linking,
   Modal,
+  TextInput,
+  ActivityIndicator,
 } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useAppStore } from "../store/useAppStore";
 import { useRestaurants } from "../hooks/useRestaurants";
 import { useLocation } from "../hooks/useLocation";
+import { importRestaurantMenu } from "../api/menuImport";
+import { recommendFromMenuContext } from "../api/menuRecommendations";
 import { ScoredRestaurant } from "../types";
 import { RatingStars } from "../components/RatingStars";
 import { CategoryPill } from "../components/CategoryPill";
@@ -39,13 +43,24 @@ export const DetailScreen: React.FC<DetailScreenProps> = ({
     lon: coords?.lon ?? null,
   });
   const addVisit = useAppStore((state) => state.addVisit);
+  const saveRestaurantMenu = useAppStore((state) => state.saveRestaurantMenu);
+  const toggleMenuItemChoice = useAppStore((state) => state.toggleMenuItemChoice);
+  const restaurantMenus = useAppStore((state) => state.restaurantMenus);
+  const menuChoices = useAppStore((state) => state.menuChoices);
 
   const [ratingModal, setRatingModal] = useState(false);
   const [selectedRating, setSelectedRating] = useState(0);
+  const [menuUrlModal, setMenuUrlModal] = useState(false);
+  const [menuUrl, setMenuUrl] = useState("");
+  const [menuLoading, setMenuLoading] = useState(false);
+  const [menuError, setMenuError] = useState<string | null>(null);
 
   const restaurant = restaurants.find(
     (r) => r.id === restaurantId,
   ) as ScoredRestaurant;
+  const storedMenu = restaurantMenus[restaurantId];
+  const selectedItems = menuChoices.filter((choice) => choice.restaurantId === restaurantId);
+  const menuItems = storedMenu?.items ?? [];
 
   if (!restaurant) {
     return (
@@ -77,6 +92,34 @@ export const DetailScreen: React.FC<DetailScreenProps> = ({
       );
     });
   };
+
+  const handleImportMenu = async () => {
+    if (!menuUrl.trim()) {
+      setMenuError("Enter a menu URL first");
+      return;
+    }
+
+    setMenuLoading(true);
+    setMenuError(null);
+
+    try {
+      const menu = await importRestaurantMenu(restaurant.id, menuUrl.trim());
+      saveRestaurantMenu(menu);
+      setMenuUrlModal(false);
+      setMenuUrl("");
+    } catch (error) {
+      setMenuError(error instanceof Error ? error.message : "Failed to import menu");
+    } finally {
+      setMenuLoading(false);
+    }
+  };
+
+  const menuRecommendation = recommendFromMenuContext({
+    restaurant,
+    candidateRestaurants: restaurants,
+    menuItems,
+    selectedChoices: selectedItems,
+  });
 
   return (
     <SafeAreaView style={styles.container}>
@@ -264,6 +307,91 @@ export const DetailScreen: React.FC<DetailScreenProps> = ({
             </View>
           )}
 
+          <View style={styles.section}>
+            <View style={styles.sectionHeaderRow}>
+              <Text style={styles.sectionTitle}>Menu Items</Text>
+              <TouchableOpacity onPress={() => setMenuUrlModal(true)}>
+                <Text style={styles.linkText}>{storedMenu ? "Update URL" : "Add Menu URL"}</Text>
+              </TouchableOpacity>
+            </View>
+
+            {storedMenu ? (
+              <View style={styles.menuPanel}>
+                <Text style={styles.menuMetaText}>Imported from {storedMenu.sourceUrl}</Text>
+                <Text style={styles.menuMetaText}>Tap items to mark what you ordered.</Text>
+
+                {menuItems.length > 0 ? (
+                  menuItems.map((item) => {
+                    const checked = selectedItems.some((choice) => choice.itemId === item.id);
+                    return (
+                      <TouchableOpacity
+                        key={item.id}
+                        style={[styles.menuItemRow, checked && styles.menuItemRowSelected]}
+                        onPress={() =>
+                          toggleMenuItemChoice({
+                            restaurantId: restaurant.id,
+                            itemId: item.id,
+                            itemName: item.name,
+                            restaurantName: restaurant.name,
+                            createdAt: Date.now(),
+                          })
+                        }
+                      >
+                        <View style={styles.menuItemTextWrap}>
+                          <Text style={styles.menuItemName}>{item.name}</Text>
+                          {item.description ? (
+                            <Text style={styles.menuItemDescription}>{item.description}</Text>
+                          ) : null}
+                        </View>
+                        <MaterialIcons
+                          name={checked ? "check-circle" : "radio-button-unchecked"}
+                          size={22}
+                          color={checked ? colors.successGreen : colors.border}
+                        />
+                      </TouchableOpacity>
+                    );
+                  })
+                ) : (
+                  <Text style={styles.menuMetaText}>No menu items found in that URL.</Text>
+                )}
+              </View>
+            ) : (
+              <Text style={styles.emptyMenuText}>
+                Add a restaurant menu URL to import items and mark what you ordered.
+              </Text>
+            )}
+          </View>
+
+          {selectedItems.length > 0 && menuRecommendation.similarRestaurants.length > 0 && (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Similar restaurant options</Text>
+              {menuRecommendation.similarRestaurants.map(({ restaurant: related, matchedReasons }) => (
+                <View key={related.id} style={styles.relatedCard}>
+                  <Text style={styles.relatedName}>{related.name}</Text>
+                  <Text style={styles.relatedMeta}>{related.cuisine.join(" • ")}</Text>
+                  <Text style={styles.relatedMeta}>{(related.distance / 1000).toFixed(1)} km away</Text>
+                  {matchedReasons.length > 0 ? (
+                    <Text style={styles.relatedReason}>{matchedReasons[0]}</Text>
+                  ) : null}
+                </View>
+              ))}
+            </View>
+          )}
+
+          {selectedItems.length > 0 && menuRecommendation.itemAvailability.length > 0 && (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Where these menu items show up</Text>
+              {menuRecommendation.itemAvailability.map((entry) => (
+                <View key={entry.itemName} style={styles.relatedCard}>
+                  <Text style={styles.relatedName}>{entry.itemName}</Text>
+                  <Text style={styles.relatedMeta}>
+                    Served at: {entry.restaurants.map((item) => item.name).slice(0, 3).join(", ")}
+                  </Text>
+                </View>
+              ))}
+            </View>
+          )}
+
           {/* Action buttons */}
           <TouchableOpacity
             style={styles.directionButton}
@@ -332,6 +460,51 @@ export const DetailScreen: React.FC<DetailScreenProps> = ({
                 disabled={selectedRating === 0}
               >
                 <Text style={styles.confirmButtonText}>Save Visit</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal visible={menuUrlModal} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Add Menu URL</Text>
+            <Text style={styles.modalSubtitle}>
+              Paste a menu page or JSON endpoint so we can import items.
+            </Text>
+
+            <TextInput
+              value={menuUrl}
+              onChangeText={setMenuUrl}
+              placeholder="https://restaurant.com/menu"
+              placeholderTextColor={colors.border}
+              style={styles.urlInput}
+              autoCapitalize="none"
+              autoCorrect={false}
+              keyboardType="url"
+            />
+
+            {menuError ? <Text style={styles.menuError}>{menuError}</Text> : null}
+
+            <View style={styles.modalActions}>
+              <TouchableOpacity
+                style={styles.cancelButton}
+                onPress={() => setMenuUrlModal(false)}
+                disabled={menuLoading}
+              >
+                <Text style={styles.cancelButtonText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.confirmButton}
+                onPress={handleImportMenu}
+                disabled={menuLoading}
+              >
+                {menuLoading ? (
+                  <ActivityIndicator color={colors.text} />
+                ) : (
+                  <Text style={styles.confirmButtonText}>Import Menu</Text>
+                )}
               </TouchableOpacity>
             </View>
           </View>
@@ -452,6 +625,16 @@ const styles = StyleSheet.create({
     color: colors.text,
     marginBottom: spacing.md,
   },
+  sectionHeaderRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: spacing.md,
+  },
+  linkText: {
+    ...typography.bodySemibold,
+    color: colors.accent,
+  },
   cuisinesContainer: {
     flexDirection: "row",
     flexWrap: "wrap",
@@ -470,6 +653,77 @@ const styles = StyleSheet.create({
     ...typography.body,
     color: colors.text,
     textTransform: "capitalize",
+  },
+  menuPanel: {
+    backgroundColor: colors.cardBackground,
+    borderRadius: borderRadius.md,
+    padding: spacing.md,
+    gap: spacing.sm,
+  },
+  menuMetaText: {
+    ...typography.bodySmall,
+    color: colors.disabledGray,
+  },
+  menuItemRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    gap: spacing.md,
+    paddingVertical: spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  menuItemRowSelected: {
+    backgroundColor: "rgba(245, 166, 35, 0.12)",
+  },
+  menuItemTextWrap: {
+    flex: 1,
+    gap: 2,
+  },
+  menuItemName: {
+    ...typography.bodySemibold,
+    color: colors.textDark,
+  },
+  menuItemDescription: {
+    ...typography.bodySmall,
+    color: colors.disabledGray,
+  },
+  emptyMenuText: {
+    ...typography.bodySmall,
+    color: colors.disabledGray,
+  },
+  relatedCard: {
+    backgroundColor: colors.cardBackground,
+    borderRadius: borderRadius.md,
+    padding: spacing.md,
+    marginBottom: spacing.sm,
+  },
+  relatedName: {
+    ...typography.bodySemibold,
+    color: colors.textDark,
+    marginBottom: 2,
+  },
+  relatedMeta: {
+    ...typography.bodySmall,
+    color: colors.disabledGray,
+  },
+  relatedReason: {
+    ...typography.caption,
+    color: colors.accent,
+    marginTop: 4,
+  },
+  urlInput: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: borderRadius.md,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    color: colors.textDark,
+    backgroundColor: colors.cardBackground,
+  },
+  menuError: {
+    ...typography.bodySmall,
+    color: colors.errorRed,
   },
   directionButton: {
     flexDirection: "row",

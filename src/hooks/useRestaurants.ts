@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Restaurant } from '../types';
 import { fetchNearbyRestaurants } from '../api/places';
+import { getCachedRestaurants, setCachedRestaurants } from '../api/restaurantCache';
 
 interface UseRestaurantsOptions {
   lat: number | null;
@@ -26,6 +27,20 @@ export function useRestaurants({
     setLoading(true);
     setError(null);
 
+    const cached = getCachedRestaurants(lat, lon, radiusMeters);
+    if (cached) {
+      setRestaurants(
+        cached
+          .map(r => ({
+            ...r,
+            distance: calculateDistance(lat, lon, r.lat, r.lon),
+          }))
+          .sort((a, b) => a.distance - b.distance)
+      );
+      setLoading(false);
+      return;
+    }
+
     try {
       const results = await fetchNearbyRestaurants(lat, lon, radiusMeters);
 
@@ -35,7 +50,9 @@ export function useRestaurants({
         distance: calculateDistance(lat, lon, r.lat, r.lon),
       }));
 
-      setRestaurants(withDistances.sort((a, b) => a.distance - b.distance));
+      const sorted = withDistances.sort((a, b) => a.distance - b.distance);
+      setRestaurants(sorted);
+      setCachedRestaurants(lat, lon, radiusMeters, sorted);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to fetch restaurants';
       setError(message);

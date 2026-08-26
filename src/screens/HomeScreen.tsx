@@ -48,6 +48,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
   const preferences = useAppStore((state) => state.preferences);
   const [selectedCuisine, setSelectedCuisine] = useState<string | null>(null);
   const [filterOpenNow, setFilterOpenNow] = useState(false);
+  const [surprisePickId, setSurprisePickId] = useState<string | null>(null);
 
   // Score and rank restaurants here
   const rankedRestaurants = useMemo(() => {
@@ -82,6 +83,29 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
 
   const handlePressRestaurant = (restaurantId: string) => {
     navigation.navigate("Detail", { restaurantId });
+  };
+
+  const handleSurpriseMe = () => {
+    if (rankedRestaurants.length === 0) {
+      return;
+    }
+
+    const candidates = rankedRestaurants.slice(0, Math.min(8, rankedRestaurants.length));
+    const totalWeight = candidates.reduce((sum, restaurant, index) => sum + Math.max(1, restaurant.score - index * 0.25), 0);
+    let cursor = Math.random() * totalWeight;
+
+    for (const restaurant of candidates) {
+      cursor -= Math.max(1, restaurant.score);
+      if (cursor <= 0) {
+        setSurprisePickId(restaurant.id);
+        navigation.navigate("Detail", { restaurantId: restaurant.id });
+        return;
+      }
+    }
+
+    const fallback = candidates[0];
+    setSurprisePickId(fallback.id);
+    navigation.navigate("Detail", { restaurantId: fallback.id });
   };
 
   const renderEmpty = () => {
@@ -193,7 +217,20 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
             Open Now
           </Text>
         </TouchableOpacity>
+        <TouchableOpacity style={styles.surpriseButton} onPress={handleSurpriseMe}>
+          <MaterialIcons name="casino" size={16} color={colors.text} />
+          <Text style={styles.surpriseButtonText}>
+            {surprisePickId ? "Surprise me again" : "Surprise me"}
+          </Text>
+        </TouchableOpacity>
       </View>
+
+      {surprisePickId && (
+        <View style={styles.surpriseBanner}>
+          <MaterialIcons name="sparkles" size={18} color={colors.accent} />
+          <Text style={styles.surpriseBannerText}>Picked from your current matches</Text>
+        </View>
+      )}
 
       {/* Results */}
       {loading || locationLoading ? (
@@ -255,6 +292,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
     paddingBottom: spacing.md,
     backgroundColor: colors.background,
+    flexDirection: "row",
+    gap: spacing.sm,
+    flexWrap: "wrap",
   },
   filterChip: {
     flexDirection: "row",
@@ -274,6 +314,34 @@ const styles = StyleSheet.create({
   },
   filterChipTextActive: {
     color: colors.text,
+  },
+  surpriseButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    backgroundColor: colors.accent,
+    borderRadius: borderRadius.md,
+    gap: spacing.xs,
+  },
+  surpriseButtonText: {
+    ...typography.bodySemibold,
+    color: colors.text,
+  },
+  surpriseBanner: {
+    marginHorizontal: spacing.lg,
+    marginBottom: spacing.md,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    backgroundColor: colors.cardBackground,
+    borderRadius: borderRadius.md,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
+  },
+  surpriseBannerText: {
+    ...typography.caption,
+    color: colors.disabledGray,
   },
   listContent: {
     paddingHorizontal: spacing.lg,

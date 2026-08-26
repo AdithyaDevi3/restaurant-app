@@ -84,6 +84,36 @@ Complete reference for all files created in the Restaurant Finder app implementa
 1. If `EXPO_PUBLIC_GOOGLE_PLACES_KEY` is set, use Google Places
 2. On failure or not set, use Overpass API (free, no key)
 
+### `src/api/restaurantCache.ts` (new)
+
+**Purpose**: MMKV-backed offline cache for nearby restaurant results
+**Functions**:
+
+- `getCachedRestaurants()` - Returns fresh cached restaurants for a location/radius bucket
+- `setCachedRestaurants()` - Persists the latest successful restaurant response
+
+**Cache Policy**:
+
+- TTL: 30 minutes
+- Keyed by coarse lat/lon buckets and search radius
+- Automatically invalidates stale or malformed entries
+
+### `src/api/menuImport.ts` (new)
+
+**Purpose**: Import and normalize restaurant menu URLs into selectable menu items
+**Functions**:
+
+- `importRestaurantMenu()` - Loads a menu URL and extracts a normalized menu list
+- Structured extraction from JSON, JSON-LD, and HTML signals before plain-text fallback
+
+### `src/api/menuRecommendations.ts` (new)
+
+**Purpose**: Convert imported menu selections into recommendation outputs
+**Functions**:
+
+- `recommendFromMenuContext()` - Produces similar restaurant recommendations and item-availability suggestions
+- `buildMenuProfile()` - Normalizes selected items and imported items into search terms
+
 ### `src/hooks/useLocation.ts` (25 lines)
 
 **Purpose**: Real-time location access
@@ -129,16 +159,20 @@ Complete reference for all files created in the Restaurant Finder app implementa
 
 ## 💾 State Management
 
-### `src/store/useAppStore.ts` (20 lines)
+### `src/store/useAppStore.ts` (updated)
 
-**Purpose**: Global state with Zustand
+**Purpose**: Global state with Zustand + MMKV persistence
 **Interface**:
 
 ```typescript
 interface AppState {
   preferences: UserPreferences;
+  restaurantMenus: Record<string, RestaurantMenu>;
+  menuChoices: RestaurantMenuChoice[];
   setPreferences: (p: Partial<UserPreferences>) => void;
   addVisit: (record: VisitRecord) => void;
+  saveRestaurantMenu: (menu: RestaurantMenu) => void;
+  toggleMenuItemChoice: (choice: RestaurantMenuChoice) => void;
 }
 ```
 
@@ -147,6 +181,12 @@ interface AppState {
 - maxDistance: 1500m
 - priceRange: [1, 3]
 - visitHistory: [] (max 100 items)
+
+**Persisted State**:
+
+- User preferences
+- Imported restaurant menus
+- Selected menu item choices
 
 ---
 

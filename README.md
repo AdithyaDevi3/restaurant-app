@@ -236,8 +236,8 @@ The recommendation algorithm is thoroughly tested. Key test cases:
 
 ## Future Enhancements
 
-- [ ] Offline caching with MMKV
-- [ ] "Surprise me" random pick feature
+- [x] Offline caching with MMKV
+- [x] "Surprise me" random pick feature
 - [ ] Share restaurant as image
 - [ ] Dark/light mode toggle
 - [ ] ML-based collaborative filtering
@@ -246,6 +246,16 @@ The recommendation algorithm is thoroughly tested. Key test cases:
 - [ ] Restaurant hours integration
 - [ ] Menu browsing
 - [ ] Table reservation integration
+
+## Menu Intelligence
+
+- Imported restaurant menus and selected menu items persist locally with MMKV
+- Menu URLs can be pasted into the detail screen for structured item import
+- Selected items power two outputs: similar restaurants and restaurants that serve the same items
+
+## Discovery Shortcuts
+
+- The Home screen includes a "Surprise me" action that picks a weighted random restaurant from the current ranked matches
 
 ## Permissions
 

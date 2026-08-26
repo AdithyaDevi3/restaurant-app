@@ -7,6 +7,7 @@ import { HomeScreen } from "./src/screens/HomeScreen";
 import { MapScreen } from "./src/screens/MapScreen";
 import { DetailScreen } from "./src/screens/DetailScreen";
 import { PreferencesScreen } from "./src/screens/PreferencesScreen";
+import { MenuExplorerScreen } from "./src/screens/MenuExplorerScreen";
 import { colors } from "./src/theme";
 
 const Tab = createBottomTabNavigator();
@@ -53,6 +54,20 @@ function PreferencesStack() {
   );
 }
 
+function MenuStack() {
+  return (
+    <Stack.Navigator
+      screenOptions={{
+        headerShown: false,
+        cardStyle: { backgroundColor: colors.background },
+      }}
+    >
+      <Stack.Screen name="MenuMain" component={MenuExplorerScreen} />
+      <Stack.Screen name="Detail" component={DetailScreen as any} />
+    </Stack.Navigator>
+  );
+}
+
 export default function App() {
   return (
     <NavigationContainer>
@@ -68,6 +83,8 @@ export default function App() {
               iconName = focused ? "map" : "map";
             } else if (route.name === "Preferences") {
               iconName = focused ? "tune" : "tune";
+            } else if (route.name === "Menu") {
+              iconName = focused ? "menu-book" : "menu-book";
             }
 
             return <MaterialIcons name={iconName} size={size} color={color} />;
@@ -100,6 +117,11 @@ export default function App() {
           name="Preferences"
           component={PreferencesStack}
           options={{ tabBarLabel: "Preferences" }}
+        />
+        <Tab.Screen
+          name="Menu"
+          component={MenuStack}
+          options={{ tabBarLabel: "Menu" }}
         />
       </Tab.Navigator>
     </NavigationContainer>
