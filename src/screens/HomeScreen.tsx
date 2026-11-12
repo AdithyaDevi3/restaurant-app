@@ -91,11 +91,11 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
     }
 
     const candidates = rankedRestaurants.slice(0, Math.min(8, rankedRestaurants.length));
-    const totalWeight = candidates.reduce((sum, restaurant, index) => sum + Math.max(1, restaurant.score - index * 0.25), 0);
+    const totalWeight = candidates.reduce((sum, restaurant, index) => sum + Math.max(1, restaurant.recommendationScore - index * 0.25), 0);
     let cursor = Math.random() * totalWeight;
 
     for (const restaurant of candidates) {
-      cursor -= Math.max(1, restaurant.score);
+      cursor -= Math.max(1, restaurant.recommendationScore);
       if (cursor <= 0) {
         setSurprisePickId(restaurant.id);
         navigation.navigate("Detail", { restaurantId: restaurant.id });
@@ -227,7 +227,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
 
       {surprisePickId && (
         <View style={styles.surpriseBanner}>
-          <MaterialIcons name="sparkles" size={18} color={colors.accent} />
+          <MaterialIcons name="auto-awesome" size={18} color={colors.accent} />
           <Text style={styles.surpriseBannerText}>Picked from your current matches</Text>
         </View>
       )}

@@ -1,4 +1,5 @@
-import React from "react";
+import { appAlert } from '../api/appAlert';
+import React, { useState } from "react";
 import {
   View,
   Text,
@@ -6,12 +7,15 @@ import {
   SafeAreaView,
   ScrollView,
   TouchableOpacity,
+  ActivityIndicator,
 } from "react-native";
 import Slider from "@react-native-community/slider";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useAppStore } from "../store/useAppStore";
 import { CategoryPill } from "../components/CategoryPill";
 import { colors, spacing, typography, borderRadius, shadows } from "../theme";
+import { createBackupPayload, mergeBackupData } from "../algorithm/DataBackup";
+import { pickBackupFile, shareBackupFile } from "../api/dataBackupFiles";
 
 interface PreferencesScreenProps {
   navigation: any;
@@ -45,6 +49,53 @@ export const PreferencesScreen: React.FC<PreferencesScreenProps> = ({
 }) => {
   const preferences = useAppStore((state) => state.preferences);
   const setPreferences = useAppStore((state) => state.setPreferences);
+  const restaurantMenus = useAppStore((state) => state.restaurantMenus);
+  const menuChoices = useAppStore((state) => state.menuChoices);
+  const restoreData = useAppStore((state) => state.restoreData);
+  const [backupAction, setBackupAction] = useState<"export" | "import" | null>(null);
+  const [backupStatus, setBackupStatus] = useState<string | null>(null);
+
+  const handleExport = async () => {
+    setBackupAction("export");
+    setBackupStatus(null);
+    try {
+      await shareBackupFile(createBackupPayload({ preferences, restaurantMenus, menuChoices }));
+      setBackupStatus("Backup ready to share. Visit photos are not included.");
+    } catch (error) {
+      appAlert("Export failed", error instanceof Error ? error.message : "Could not export data.");
+    } finally {
+      setBackupAction(null);
+    }
+  };
+
+  const handleImport = async () => {
+    setBackupAction("import");
+    setBackupStatus(null);
+    try {
+      const backup = await pickBackupFile();
+      if (!backup) return;
+
+      const merged = mergeBackupData({ preferences, restaurantMenus, menuChoices }, backup);
+      appAlert(
+        "Import backup?",
+        `This will merge ${backup.preferences.visitHistory.length} visits and ${Object.keys(backup.restaurantMenus).length} menus with data already on this device. Visit photos are not included.`,
+        [
+          { text: "Cancel", style: "cancel" },
+          {
+            text: "Import",
+            onPress: () => {
+              restoreData(merged);
+              setBackupStatus(`Imported ${backup.preferences.visitHistory.length} visits.`);
+            },
+          },
+        ],
+      );
+    } catch (error) {
+      appAlert("Import failed", error instanceof Error ? error.message : "Could not import data.");
+    } finally {
+      setBackupAction(null);
+    }
+  };
 
   const toggleCuisine = (cuisine: string) => {
     const updated = preferences.favoriteCuisines.includes(cuisine)
@@ -131,7 +182,11 @@ export const PreferencesScreen: React.FC<PreferencesScreenProps> = ({
         </Section>
 
         {/* Distance */}
-        <Section title="Search Distance">
+        <Section title="Explore Search Distance">
+          <Text style={styles.sliderCaption}>
+            Only affects the Explore tab. For You recommendations use the area around each
+            visit you've logged.
+          </Text>
           <Text style={styles.sliderValue}>
             {(preferences.maxDistance / 1000).toFixed(1)} km
           </Text>
@@ -268,6 +323,40 @@ export const PreferencesScreen: React.FC<PreferencesScreenProps> = ({
             )}
           </View>
         </Section>
+
+        <Section title="Backup & Restore">
+          <Text style={styles.backupDescription}>
+            Export visits, preferences, menus, notes, and liked dishes as JSON. Photos stay on this
+            device and are not included in backups.
+          </Text>
+          <View style={styles.backupActions}>
+            <TouchableOpacity
+              style={styles.backupButton}
+              onPress={handleExport}
+              disabled={backupAction !== null}
+            >
+              {backupAction === "export" ? (
+                <ActivityIndicator color={colors.background} size="small" />
+              ) : (
+                <MaterialIcons name="ios-share" size={20} color={colors.background} />
+              )}
+              <Text style={styles.backupButtonText}>Export JSON</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.backupButton, styles.importButton]}
+              onPress={handleImport}
+              disabled={backupAction !== null}
+            >
+              {backupAction === "import" ? (
+                <ActivityIndicator color={colors.accent} size="small" />
+              ) : (
+                <MaterialIcons name="file-download" size={20} color={colors.accent} />
+              )}
+              <Text style={[styles.backupButtonText, styles.importButtonText]}>Import JSON</Text>
+            </TouchableOpacity>
+          </View>
+          {backupStatus ? <Text style={styles.backupStatus}>{backupStatus}</Text> : null}
+        </Section>
       </ScrollView>
     </SafeAreaView>
   );
@@ -322,6 +411,11 @@ const styles = StyleSheet.create({
   cuisinePill: {
     marginRight: spacing.xs,
     marginBottom: spacing.xs,
+  },
+  sliderCaption: {
+    ...typography.caption,
+    color: colors.disabledGray,
+    marginBottom: spacing.sm,
   },
   sliderValue: {
     ...typography.heading3,
@@ -399,5 +493,42 @@ const styles = StyleSheet.create({
   historyDate: {
     ...typography.caption,
     color: colors.disabledGray,
+  },
+  backupDescription: {
+    ...typography.body,
+    color: colors.disabledGray,
+    marginBottom: spacing.md,
+  },
+  backupActions: {
+    flexDirection: "row",
+    gap: spacing.sm,
+  },
+  backupButton: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: spacing.sm,
+    padding: spacing.md,
+    borderRadius: borderRadius.md,
+    backgroundColor: colors.accent,
+    ...shadows.sm,
+  },
+  backupButtonText: {
+    ...typography.bodySemibold,
+    color: colors.background,
+  },
+  importButton: {
+    backgroundColor: "rgba(245, 166, 35, 0.08)",
+    borderWidth: 1,
+    borderColor: colors.accent,
+  },
+  importButtonText: {
+    color: colors.accent,
+  },
+  backupStatus: {
+    ...typography.caption,
+    color: colors.successGreen,
+    marginTop: spacing.md,
   },
 });

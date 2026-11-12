@@ -8,12 +8,13 @@ import {
   Dimensions,
   ScrollView,
 } from "react-native";
-import MapView, { Marker, PROVIDER_GOOGLE } from "react-native-maps";
+import MapView, { Marker, Circle, PROVIDER_GOOGLE } from "react-native-maps";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useLocation } from "../hooks/useLocation";
 import { useRestaurants } from "../hooks/useRestaurants";
 import { useAppStore } from "../store/useAppStore";
 import { RecommendationEngine } from "../algorithm/RecommendationEngine";
+import { clusterVisits } from "../algorithm/AreaClustering";
 import { RestaurantCard } from "../components/RestaurantCard";
 import { colors, spacing, typography, borderRadius } from "../theme";
 
@@ -40,6 +41,19 @@ export const MapScreen: React.FC<MapScreenProps> = ({ navigation }) => {
   const rankedRestaurants = useMemo(() => {
     return RecommendationEngine.rank(restaurants, preferences);
   }, [restaurants, preferences]);
+
+  const visitAreas = useMemo(
+    () => clusterVisits(preferences.visitHistory),
+    [preferences.visitHistory],
+  );
+
+  const locatedVisits = useMemo(
+    () =>
+      preferences.visitHistory.filter(
+        (visit) => !(visit.lat === 0 && visit.lon === 0),
+      ),
+    [preferences.visitHistory],
+  );
 
   const getMarkerColor = (score: number): string => {
     if (score >= 80) return colors.successGreen;
@@ -76,6 +90,32 @@ export const MapScreen: React.FC<MapScreenProps> = ({ navigation }) => {
               pinColor={colors.accent}
             />
           )}
+
+          {/* Visit areas */}
+          {visitAreas.map((area) => (
+            <Circle
+              key={area.id}
+              center={{ latitude: area.centroid.lat, longitude: area.centroid.lon }}
+              radius={area.radiusMeters}
+              strokeColor="rgba(245,166,35,0.6)"
+              fillColor="rgba(245,166,35,0.08)"
+              strokeWidth={1}
+            />
+          ))}
+
+          {/* Visited restaurants */}
+          {locatedVisits.map((visit) => (
+            <Marker
+              key={`visit-${visit.restaurantId}-${visit.timestamp}`}
+              coordinate={{ latitude: visit.lat, longitude: visit.lon }}
+              title={visit.restaurantName}
+              description={`You rated it ${visit.rating}/5`}
+            >
+              <View style={styles.visitMarker}>
+                <MaterialIcons name="check" size={16} color={colors.cardBackground} />
+              </View>
+            </Marker>
+          ))}
 
           {/* Restaurant markers */}
           {rankedRestaurants.map((restaurant) => (
@@ -146,6 +186,12 @@ export const MapScreen: React.FC<MapScreenProps> = ({ navigation }) => {
           />
           <Text style={styles.legendText}>Fair (&lt;60)</Text>
         </View>
+        <View style={styles.legendItem}>
+          <View
+            style={[styles.legendDot, { backgroundColor: colors.successGreen, borderWidth: 1, borderColor: colors.cardBackground }]}
+          />
+          <Text style={styles.legendText}>Visited</Text>
+        </View>
       </View>
     </SafeAreaView>
   );
@@ -177,6 +223,16 @@ const styles = StyleSheet.create({
     ...typography.bodySemibold,
     color: colors.background,
     fontSize: 12,
+  },
+  visitMarker: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: colors.successGreen,
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 2,
+    borderColor: colors.cardBackground,
   },
   previewContainer: {
     position: "absolute",

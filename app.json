@@ -13,15 +13,27 @@
           "locationAlwaysAndWhenInUsePermission": "This app uses your location to find restaurants near you.",
           "locationWhenInUsePermission": "This app uses your location to find restaurants near you."
         }
-      ]
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "RestaurantFinder uses your photos to attach memories to restaurant visits.",
+          "cameraPermission": false,
+          "microphonePermission": false
+        }
+      ],
+      "expo-sharing",
+      "expo-font"
     ],
     "ios": {
+      "bundleIdentifier": "com.restaurantfinder.app",
       "supportsTablet": true,
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "Used to find restaurants near you."
       }
     },
     "android": {
+      "package": "com.restaurantfinder.app",
       "adaptiveIcon": {
         "backgroundColor": "#1A1A2E",
         "foregroundImage": "./assets/android-icon-foreground.png",
@@ -29,7 +41,10 @@
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "permissions": ["ACCESS_FINE_LOCATION", "ACCESS_COARSE_LOCATION"]
+      "permissions": [
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"

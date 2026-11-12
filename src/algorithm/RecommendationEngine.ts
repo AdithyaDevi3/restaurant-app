@@ -19,8 +19,22 @@ export class RecommendationEngine {
     prefs: UserPreferences
   ): ScoredRestaurant[] {
     return restaurants
+      .filter(r => this.meetsHardPreferences(r, prefs))
       .map(r => this.score(r, prefs))
       .sort((a, b) => b.recommendationScore - a.recommendationScore);
+  }
+
+  private static meetsHardPreferences(
+    r: Restaurant,
+    prefs: Pick<UserPreferences, 'avoidCuisines' | 'dietaryRestrictions'>,
+  ): boolean {
+    const cuisines = new Set(r.cuisine.map(c => c.toLowerCase()));
+    if (prefs.avoidCuisines.some(cuisine => cuisines.has(cuisine.toLowerCase()))) {
+      return false;
+    }
+
+    const tags = new Set(r.tags.map(tag => tag.toLowerCase()));
+    return prefs.dietaryRestrictions.every(restriction => tags.has(restriction.toLowerCase()));
   }
 
   private static score(r: Restaurant, prefs: UserPreferences): ScoredRestaurant {
@@ -29,7 +43,7 @@ export class RecommendationEngine {
       ratingScore:     this.ratingScore(r.rating, r.reviewCount ?? 0),
       preferenceScore: this.preferenceScore(r, prefs),
       noveltyScore:    this.noveltyScore(r, prefs.visitHistory),
-      priceScore:      this.priceScore(r.priceLevel, prefs.priceRange),
+      priceScore:      r.priceLevelKnown === false ? 0.5 : this.priceScore(r.priceLevel, prefs.priceRange),
     };
 
     const total =
@@ -69,20 +83,8 @@ export class RecommendationEngine {
     return adjusted / 5;       // normalize to 0–1
   }
 
-  /** Cuisine match + dietary filter penalty + avoid-list penalty */
+  /** Cuisine overlap for restaurants that already passed the hard preference gate. */
   private static preferenceScore(r: Restaurant, prefs: UserPreferences): number {
-    // Hard block: user explicitly avoids this cuisine
-    const isAvoided = r.cuisine.some(c =>
-      prefs.avoidCuisines.map(x => x.toLowerCase()).includes(c.toLowerCase())
-    );
-    if (isAvoided) return 0;
-
-    // Hard block: dietary restrictions not met
-    const restrictionsMet = prefs.dietaryRestrictions.every(d =>
-      r.tags.map(t => t.toLowerCase()).includes(d.toLowerCase())
-    );
-    if (prefs.dietaryRestrictions.length > 0 && !restrictionsMet) return 0;
-
     // Soft score: cuisine overlap with favorites
     if (prefs.favoriteCuisines.length === 0) return 0.5; // neutral if no prefs set
     const matches = r.cuisine.filter(c =>

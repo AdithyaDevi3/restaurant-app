@@ -1,6 +1,10 @@
 module.exports = {
   testEnvironment: 'node',
   setupFilesAfterEnv: ['<rootDir>/jest.setup.js'],
+  moduleNameMapper: {
+    '^expo/virtual/env$': '<rootDir>/jest.mocks/expo-env.ts',
+    '^react-native-mmkv$': '<rootDir>/jest.mocks/react-native-mmkv.ts',
+  },
   testMatch: ['**/__tests__/**/*.ts?(x)', '**/?(*.)+(spec|test).ts?(x)'],
   collectCoverageFrom: ['src/**/*.{ts,tsx}', '!src/**/*.d.ts', '!src/types/**'],
   coverageThreshold: {

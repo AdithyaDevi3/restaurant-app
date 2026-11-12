@@ -5,37 +5,38 @@ import {
   TouchableOpacity,
   Image,
   StyleSheet,
-  Dimensions,
 } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
 import { ScoredRestaurant } from "../types";
 import { RecommendationEngine } from "../algorithm/RecommendationEngine";
 import { RatingStars } from "./RatingStars";
 import { CategoryPill } from "./CategoryPill";
+import { PlaceAttribution } from "./PlaceAttribution";
 import { colors, spacing, borderRadius, typography, shadows } from "../theme";
 
 interface RestaurantCardProps {
   restaurant: ScoredRestaurant;
   onPress?: () => void;
   showScore?: boolean;
+  reasons?: string[];
 }
-
-const { width } = Dimensions.get("window");
-const cardWidth = width - spacing.lg * 2;
 
 export const RestaurantCard: React.FC<RestaurantCardProps> = ({
   restaurant,
   onPress,
   showScore = true,
+  reasons: suppliedReasons,
 }) => {
   const [expanded, setExpanded] = useState(false);
-  const reasons = RecommendationEngine.explainScore(restaurant);
+  const reasons = suppliedReasons ?? RecommendationEngine.explainScore(restaurant);
 
   const distanceKm = (restaurant.distance / 1000).toFixed(1);
 
   return (
     <TouchableOpacity
-      style={[styles.container, { width: cardWidth }]}
+      accessibilityRole="button"
+      accessibilityLabel={`View ${restaurant.name}`}
+      style={[styles.container, { width: '100%', maxWidth: 800 }]}
       onPress={onPress}
       activeOpacity={0.9}
     >
@@ -71,9 +72,9 @@ export const RestaurantCard: React.FC<RestaurantCardProps> = ({
               {restaurant.name}
             </Text>
             <View style={styles.ratingRow}>
-              <RatingStars rating={restaurant.rating} size={14} />
+              {(restaurant.reviewCount ?? 0) > 0 ? <RatingStars rating={restaurant.rating} size={14} /> : null}
               <Text style={styles.reviewCount}>
-                {restaurant.reviewCount} reviews
+                {(restaurant.reviewCount ?? 0) > 0 ? `${restaurant.reviewCount} reviews` : 'No public ratings'}
               </Text>
             </View>
           </View>
@@ -105,7 +106,7 @@ export const RestaurantCard: React.FC<RestaurantCardProps> = ({
           </View>
           <View style={styles.metaItem}>
             <Text style={styles.priceLevel}>
-              {"$".repeat(restaurant.priceLevel)}
+              {restaurant.priceLevelKnown === false ? 'Price unavailable' : "$".repeat(restaurant.priceLevel)}
             </Text>
           </View>
         </View>
@@ -135,6 +136,7 @@ export const RestaurantCard: React.FC<RestaurantCardProps> = ({
         </TouchableOpacity>
 
         {/* Expanded Reasons */}
+        {suppliedReasons ? <Text style={styles.reasonItem}>{suppliedReasons.slice(0, 2).join(' · ')}</Text> : null}
         {expanded && (
           <View style={styles.expandedReasons}>
             {reasons.map((reason, i) => (
@@ -146,6 +148,7 @@ export const RestaurantCard: React.FC<RestaurantCardProps> = ({
         )}
 
         {/* Tags */}
+        <PlaceAttribution restaurant={restaurant} />
         {restaurant.tags.length > 0 && (
           <View style={styles.tagsContainer}>
             {restaurant.tags.map((tag, i) => (

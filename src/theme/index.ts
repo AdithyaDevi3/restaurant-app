@@ -49,6 +49,11 @@ export const typography = {
     fontWeight: '400' as const,
     lineHeight: 20,
   },
+  bodySmall: {
+    fontSize: 13,
+    fontWeight: '400' as const,
+    lineHeight: 18,
+  },
   bodySemibold: {
     fontSize: 14,
     fontWeight: '600' as const,
