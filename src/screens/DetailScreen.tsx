@@ -21,6 +21,7 @@ import { recommendFromMenuContext } from "../api/menuRecommendations";
 import { ScoredRestaurant } from "../types";
 import { RatingStars } from "../components/RatingStars";
 import { CategoryPill } from "../components/CategoryPill";
+import { PlaceAttribution } from "../components/PlaceAttribution";
 import { colors, spacing, typography, borderRadius, shadows } from "../theme";
 
 interface DetailScreenProps {
@@ -28,6 +29,7 @@ interface DetailScreenProps {
   route: {
     params: {
       restaurantId: string;
+      restaurant?: ScoredRestaurant;
     };
   };
 }
@@ -37,6 +39,7 @@ export const DetailScreen: React.FC<DetailScreenProps> = ({
   route,
 }) => {
   const { restaurantId } = route.params;
+  const passedRestaurant = route.params.restaurant;
   const { coords } = useLocation();
   const { restaurants } = useRestaurants({
     lat: coords?.lat ?? null,
@@ -55,9 +58,9 @@ export const DetailScreen: React.FC<DetailScreenProps> = ({
   const [menuLoading, setMenuLoading] = useState(false);
   const [menuError, setMenuError] = useState<string | null>(null);
 
-  const restaurant = restaurants.find(
-    (r) => r.id === restaurantId,
-  ) as ScoredRestaurant;
+  const restaurant =
+    passedRestaurant ??
+    (restaurants.find((r) => r.id === restaurantId) as ScoredRestaurant);
   const storedMenu = restaurantMenus[restaurantId];
   const selectedItems = menuChoices.filter((choice) => choice.restaurantId === restaurantId);
   const menuItems = storedMenu?.items ?? [];
@@ -75,9 +78,13 @@ export const DetailScreen: React.FC<DetailScreenProps> = ({
   const handleVisit = () => {
     addVisit({
       restaurantId: restaurant.id,
+      restaurantName: restaurant.name,
       cuisines: restaurant.cuisine,
       rating: selectedRating,
       timestamp: Date.now(),
+      lat: restaurant.lat,
+      lon: restaurant.lon,
+      menuLogged: Boolean(storedMenu),
     });
     setRatingModal(false);
     setSelectedRating(0);
@@ -152,12 +159,12 @@ export const DetailScreen: React.FC<DetailScreenProps> = ({
           {/* Title and rating */}
           <Text style={styles.title}>{restaurant.name}</Text>
           <View style={styles.ratingContainer}>
-            <RatingStars rating={restaurant.rating} size={18} />
+            {(restaurant.reviewCount ?? 0) > 0 ? <RatingStars rating={restaurant.rating} size={18} /> : null}
             <Text style={styles.ratingText}>
-              {restaurant.rating.toFixed(1)}
+              {(restaurant.reviewCount ?? 0) > 0 ? restaurant.rating.toFixed(1) : 'No public ratings'}
             </Text>
             <Text style={styles.reviewsText}>
-              ({restaurant.reviewCount} reviews)
+              {(restaurant.reviewCount ?? 0) > 0 ? `(${restaurant.reviewCount} reviews)` : ''}
             </Text>
           </View>
 
@@ -252,7 +259,7 @@ export const DetailScreen: React.FC<DetailScreenProps> = ({
                 color={colors.accent}
               />
               <Text style={styles.infoText}>
-                {"$".repeat(restaurant.priceLevel)}
+                {restaurant.priceLevelKnown === false ? 'Price unavailable' : "$".repeat(restaurant.priceLevel)}
               </Text>
             </View>
             <View style={styles.infoItem}>
@@ -260,20 +267,20 @@ export const DetailScreen: React.FC<DetailScreenProps> = ({
                 name="schedule"
                 size={20}
                 color={
-                  restaurant.openNow ? colors.successGreen : colors.errorRed
+                  restaurant.openNow === undefined ? colors.disabledGray : restaurant.openNow ? colors.successGreen : colors.errorRed
                 }
               />
               <Text
                 style={[
                   styles.infoText,
                   {
-                    color: restaurant.openNow
+                    color: restaurant.openNow === undefined ? colors.disabledGray : restaurant.openNow
                       ? colors.successGreen
                       : colors.errorRed,
                   },
                 ]}
               >
-                {restaurant.openNow ? "Open" : "Closed"}
+                {restaurant.openNow === undefined ? 'Hours unavailable' : restaurant.openNow ? "Open" : "Closed"}
               </Text>
             </View>
           </View>
@@ -288,6 +295,7 @@ export const DetailScreen: React.FC<DetailScreenProps> = ({
             </View>
           </View>
 
+          <PlaceAttribution restaurant={restaurant} />
           {/* Tags */}
           {restaurant.tags.length > 0 && (
             <View style={styles.section}>
@@ -380,12 +388,12 @@ export const DetailScreen: React.FC<DetailScreenProps> = ({
 
           {selectedItems.length > 0 && menuRecommendation.itemAvailability.length > 0 && (
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Where these menu items show up</Text>
+              <Text style={styles.sectionTitle}>Restaurants matching food keywords</Text>
               {menuRecommendation.itemAvailability.map((entry) => (
                 <View key={entry.itemName} style={styles.relatedCard}>
                   <Text style={styles.relatedName}>{entry.itemName}</Text>
                   <Text style={styles.relatedMeta}>
-                    Served at: {entry.restaurants.map((item) => item.name).slice(0, 3).join(", ")}
+                    Keyword matches: {entry.restaurants.map((item) => item.restaurant.name).slice(0, 3).join(", ")}. Dish availability is unconfirmed.
                   </Text>
                 </View>
               ))}

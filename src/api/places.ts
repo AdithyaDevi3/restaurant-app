@@ -1,83 +1,18 @@
 import axios from 'axios';
 import { Restaurant } from '../types';
-
-const GOOGLE_PLACES_KEY = process.env.EXPO_PUBLIC_GOOGLE_PLACES_KEY;
-
-interface GooglePlacesResult {
-  place_id: string;
-  name: string;
-  rating?: number;
-  user_ratings_total?: number;
-  geometry: {
-    location: {
-      lat: number;
-      lng: number;
-    };
-  };
-  photos?: Array<{ photo_reference: string }>;
-  types: string[];
-  opening_hours?: {
-    open_now: boolean;
-  };
-  price_level?: number;
-}
+import { apiEndpoint } from './apiEndpoint';
 
 interface OverpassNode {
   id: number;
+  type?: string;
   lat: number;
   lon: number;
+  center?: { lat: number; lon: number };
   tags: Record<string, string>;
 }
 
 interface OverpassResponse {
   elements: OverpassNode[];
-}
-
-/**
- * Fetch restaurants using Google Places API (if key is available)
- */
-async function fetchFromGooglePlaces(
-  lat: number,
-  lon: number,
-  radiusMeters: number
-): Promise<Restaurant[]> {
-  if (!GOOGLE_PLACES_KEY) {
-    throw new Error('Google Places API key not configured');
-  }
-
-  try {
-    const response = await axios.get(
-      'https://maps.googleapis.com/maps/api/place/nearbysearch/json',
-      {
-        params: {
-          location: `${lat},${lon}`,
-          radius: radiusMeters,
-          type: 'restaurant',
-          key: GOOGLE_PLACES_KEY,
-        },
-      }
-    );
-
-    return response.data.results.map((place: GooglePlacesResult) => ({
-      id: place.place_id,
-      name: place.name,
-      cuisine: extractCuisines(place.types),
-      rating: place.rating || 0,
-      reviewCount: place.user_ratings_total || 0,
-      priceLevel: (place.price_level || 2) as 1 | 2 | 3 | 4,
-      distance: 0, // Will be calculated on client
-      lat: place.geometry.location.lat,
-      lon: place.geometry.location.lng,
-      openNow: place.opening_hours?.open_now,
-      photoUrl: place.photos?.[0]
-        ? `https://maps.googleapis.com/maps/api/place/photo?maxwidth=400&photo_reference=${place.photos[0].photo_reference}&key=${GOOGLE_PLACES_KEY}`
-        : undefined,
-      tags: extractTags(place.types),
-    }));
-  } catch (error) {
-    console.error('Google Places API error:', error);
-    throw error;
-  }
 }
 
 /**
@@ -91,112 +26,72 @@ async function fetchFromOverpassAPI(
   try {
     const query = `
       [out:json][timeout:25];
-      node["amenity"="restaurant"](around:${radiusMeters},${lat},${lon});
-      out body;
+      nwr["amenity"="restaurant"](around:${radiusMeters},${lat},${lon});
+      out center;
     `;
 
-    const response = await axios.post(
-      'https://overpass-api.de/api/interpreter',
+    const response = apiEndpoint ? await axios.get(`${apiEndpoint}/places`, {
+      params: { lat, lon, radius: radiusMeters }, timeout: 150000,
+    }) : await axios.post(
+      'https://overpass.private.coffee/api/interpreter',
       query,
-      { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }
+      { headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, timeout: 30000 }
     );
 
+    if (apiEndpoint && Array.isArray(response.data.restaurants)) return response.data.restaurants;
     const data: OverpassResponse = response.data;
 
-    return data.elements.map((node: OverpassNode, index: number) => {
+    return data.elements.filter((node) => node.tags && Number.isFinite(node.lat ?? node.center?.lat) && Number.isFinite(node.lon ?? node.center?.lon)).map((node: OverpassNode) => {
       const cuisines = node.tags.cuisine
         ? node.tags.cuisine.split(';').map(c => c.trim())
         : ['Restaurant'];
 
       return {
-        id: `osm-${node.id}`,
+        id: node.type && node.type !== 'node' ? `osm-${node.type}-${node.id}` : `osm-${node.id}`,
+        sourceProvider: 'osm' as const,
         name: node.tags.name || 'Unnamed Restaurant',
         cuisine: cuisines,
         rating: 0, // OSM doesn't provide ratings directly
         reviewCount: 0,
         priceLevel: estimatePriceLevel(node.tags) as 1 | 2 | 3 | 4,
         distance: 0,
-        lat: node.lat,
-        lon: node.lon,
+        lat: node.lat ?? node.center!.lat,
+        lon: node.lon ?? node.center!.lon,
         openNow: undefined,
         photoUrl: undefined,
+        sourceUrl: normalizeWebsiteUrl(node.tags.website || node.tags['contact:website']),
         tags: extractTagsFromOSM(node.tags),
       };
     });
   } catch (error) {
-    console.error('Overpass API error:', error);
+    if (apiEndpoint && axios.isAxiosError(error) && typeof error.response?.data === 'string') {
+      throw new Error(error.response.data);
+    }
     throw error;
   }
 }
 
-/**
- * Main entry point - tries Google Places first, falls back to Overpass
- */
+export function normalizeWebsiteUrl(value: string | undefined): string | undefined {
+  if (!value) return undefined;
+
+  const trimmed = value.trim();
+  const candidate = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+
+  try {
+    const parsed = new URL(candidate);
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:' ? parsed.toString() : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/** Free public restaurant lookup shared by native and web builds. */
 export async function fetchNearbyRestaurants(
   lat: number,
   lon: number,
-  radiusMeters: number = 1500
+  radiusMeters: number = 1500,
 ): Promise<Restaurant[]> {
-  try {
-    // Try Google Places first
-    if (GOOGLE_PLACES_KEY) {
-      return await fetchFromGooglePlaces(lat, lon, radiusMeters);
-    }
-  } catch (error) {
-    console.warn('Google Places failed, trying Overpass API');
-  }
-
-  // Fall back to Overpass
   return fetchFromOverpassAPI(lat, lon, radiusMeters);
-}
-
-/**
- * Extract cuisine categories from Google Places types
- */
-function extractCuisines(types: string[]): string[] {
-  const cuisineMap: Record<string, string> = {
-    cafe: 'Cafe',
-    bakery: 'Bakery',
-    bar_pub: 'Bar/Pub',
-    chinese_restaurant: 'Chinese',
-    european_restaurant: 'European',
-    fast_food_restaurant: 'Fast Food',
-    french_restaurant: 'French',
-    indian_restaurant: 'Indian',
-    italian_restaurant: 'Italian',
-    japanese_restaurant: 'Japanese',
-    korean_restaurant: 'Korean',
-    mediterranean_restaurant: 'Mediterranean',
-    mexican_restaurant: 'Mexican',
-    middle_eastern_restaurant: 'Middle Eastern',
-    pizza_restaurant: 'Pizza',
-    seafood_restaurant: 'Seafood',
-    steakhouse: 'Steakhouse',
-    sushi_restaurant: 'Sushi',
-    thai_restaurant: 'Thai',
-    vietnamese_restaurant: 'Vietnamese',
-  };
-
-  const extracted: string[] = [];
-  types.forEach(type => {
-    if (cuisineMap[type] && !extracted.includes(cuisineMap[type])) {
-      extracted.push(cuisineMap[type]);
-    }
-  });
-
-  return extracted.length > 0 ? extracted : ['International'];
-}
-
-/**
- * Extract tags from Google Places types
- */
-function extractTags(types: string[]): string[] {
-  const tags: string[] = [];
-
-  if (types.includes('vegetarian_restaurant')) tags.push('vegetarian');
-  if (types.includes('vegan_restaurant')) tags.push('vegan');
-
-  return tags;
 }
 
 /**

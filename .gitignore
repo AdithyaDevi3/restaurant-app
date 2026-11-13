@@ -1,5 +1,7 @@
 Prompt.rd
 node_modules/
+.venv/
+__pycache__/
 
 # Expo / React Native
 .expo/
@@ -67,3 +69,6 @@ AGENT.md
 agent.md
 AGENTS.md
 agents.md
+NEXT_STEPS.md
+PIVOT_PLAN.md
+WORKLOG.md

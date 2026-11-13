@@ -1,7 +1,8 @@
-import { MMKV } from 'react-native-mmkv';
+import { createMMKV } from 'react-native-mmkv';
 import { Restaurant } from '../types';
+import { DISCOVERY_CACHE_MAX_ENTRIES, enforceCacheEntryLimit } from './cacheEviction';
 
-const storage = new MMKV({ id: 'restaurant-finder-cache' });
+const storage = createMMKV({ id: 'restaurant-finder-cache' });
 const CACHE_TTL_MS = 30 * 60 * 1000;
 
 interface CachedRestaurantsEntry {
@@ -10,8 +11,8 @@ interface CachedRestaurantsEntry {
 }
 
 function buildCacheKey(lat: number, lon: number, radiusMeters: number): string {
-  const latBucket = lat.toFixed(2);
-  const lonBucket = lon.toFixed(2);
+  const latBucket = lat.toFixed(4);
+  const lonBucket = lon.toFixed(4);
   return `restaurants:${latBucket}:${lonBucket}:${radiusMeters}`;
 }
 
@@ -30,13 +31,13 @@ export function getCachedRestaurants(
   try {
     const cached: CachedRestaurantsEntry = JSON.parse(raw);
     if (Date.now() - cached.timestamp > CACHE_TTL_MS) {
-      storage.delete(key);
+      storage.remove(key);
       return null;
     }
 
     return cached.restaurants;
   } catch {
-    storage.delete(key);
+    storage.remove(key);
     return null;
   }
 }
@@ -54,4 +55,5 @@ export function setCachedRestaurants(
   };
 
   storage.set(key, JSON.stringify(payload));
+  enforceCacheEntryLimit(storage, ['restaurants:', 'arealabel:'], DISCOVERY_CACHE_MAX_ENTRIES);
 }

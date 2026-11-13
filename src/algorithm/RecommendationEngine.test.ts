@@ -40,4 +40,31 @@ describe('RecommendationEngine', () => {
     expect(reasons).toContain('Matches your taste');
     expect(reasons).toContain('In your budget');
   });
+
+  it('excludes avoided cuisines instead of allowing other factors to outweigh them', () => {
+    const ranked = RecommendationEngine.rank(
+      [restaurant],
+      { ...basePreferences, avoidCuisines: ['ITALIAN'] },
+    );
+
+    expect(ranked).toHaveLength(0);
+  });
+
+  it('fails closed when dietary tags are missing', () => {
+    const ranked = RecommendationEngine.rank(
+      [{ ...restaurant, tags: [] }],
+      { ...basePreferences, dietaryRestrictions: ['vegan'] },
+    );
+
+    expect(ranked).toHaveLength(0);
+  });
+
+  it('keeps restaurants that match every dietary restriction case-insensitively', () => {
+    const ranked = RecommendationEngine.rank(
+      [{ ...restaurant, tags: ['Vegan', 'Gluten-Free'] }],
+      { ...basePreferences, dietaryRestrictions: ['vegan', 'gluten-free'] },
+    );
+
+    expect(ranked).toHaveLength(1);
+  });
 });

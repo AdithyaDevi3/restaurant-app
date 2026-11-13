@@ -53,16 +53,16 @@ export const MenuExplorerScreen: React.FC<MenuExplorerScreenProps> = ({ navigati
           recommendation,
         };
       })
-      .filter(Boolean)
+      .filter((entry): entry is NonNullable<typeof entry> => entry !== null)
       .filter((entry) => {
         if (!query.trim()) return true;
         const lowerQuery = query.toLowerCase();
         return (
-          entry!.sourceRestaurant.name.toLowerCase().includes(lowerQuery) ||
-          entry!.menu.items.some((item) => item.name.toLowerCase().includes(lowerQuery)) ||
-          entry!.recommendation.similarRestaurants.some((item) => item.restaurant.name.toLowerCase().includes(lowerQuery)) ||
-          entry!.recommendation.itemAvailability.some((itemEntry) => itemEntry.itemName.toLowerCase().includes(lowerQuery)) ||
-          entry!.recommendation.recommendedItems.some((item) => item.item.name.toLowerCase().includes(lowerQuery))
+          entry.sourceRestaurant.name.toLowerCase().includes(lowerQuery) ||
+          entry.menu.items.some((item) => item.name.toLowerCase().includes(lowerQuery)) ||
+          entry.recommendation.similarRestaurants.some((item) => item.restaurant.name.toLowerCase().includes(lowerQuery)) ||
+          entry.recommendation.itemAvailability.some((itemEntry) => itemEntry.itemName.toLowerCase().includes(lowerQuery)) ||
+          entry.recommendation.recommendedItems.some((item) => item.item.name.toLowerCase().includes(lowerQuery))
         );
       });
   }, [menuChoices, query, restaurantMenus, restaurants]);

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Restaurant } from '../types';
 import { fetchNearbyRestaurants } from '../api/places';
 import { getCachedRestaurants, setCachedRestaurants } from '../api/restaurantCache';
@@ -17,10 +17,14 @@ export function useRestaurants({
   const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const requestId = useRef(0);
 
   const fetch = useCallback(async () => {
-    if (!lat || !lon) {
+    const id = ++requestId.current;
+    setRestaurants([]);
+    if (lat === null || lon === null) {
       setError('Location not available');
+      setLoading(false);
       return;
     }
 
@@ -43,6 +47,7 @@ export function useRestaurants({
 
     try {
       const results = await fetchNearbyRestaurants(lat, lon, radiusMeters);
+      if (id !== requestId.current) return;
 
       // Calculate distances
       const withDistances = results.map(r => ({
@@ -55,15 +60,15 @@ export function useRestaurants({
       setCachedRestaurants(lat, lon, radiusMeters, sorted);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to fetch restaurants';
-      setError(message);
-      console.error('useRestaurants error:', err);
+      if (id === requestId.current) setError(message);
     } finally {
-      setLoading(false);
+      if (id === requestId.current) setLoading(false);
     }
   }, [lat, lon, radiusMeters]);
 
   useEffect(() => {
-    fetch();
+    void fetch();
+    return () => { requestId.current += 1; };
   }, [fetch]);
 
   return { restaurants, loading, error, refetch: fetch };

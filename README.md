@@ -1,329 +1,83 @@
-# 🍽️ Restaurant Finder App
+# RestaurantFinder
 
-A sophisticated React Native mobile app that recommends restaurants based on user preferences, location proximity, ratings, novelty, and price using an advanced multi-factor scoring algorithm.
+Find new restaurants nearby from the restaurants you enjoyed and the dishes you liked. Built with Expo SDK 56, React Native, and React Native Web.
 
-## Features
+1. Add a nearby restaurant, give it a rating, and enter dishes you liked.
+2. Open **For You** and choose **Near me**, a saved neighborhood, or search another city or neighborhood.
+3. Choose a 1, 3, or 5 km radius. Suggestions exclude previously visited restaurants and stay inside that radius.
+4. **Menu dish matches** show both the candidate dish and the dish you liked. **Similar cuisine** and **Food keyword match** suggestions clearly say dish availability is unconfirmed.
 
-✨ **Smart Recommendation Algorithm**
+You can also import a readable menu URL, heart individual dishes, add private notes/photos, explore nearby restaurants, and export or restore structured data as JSON.
 
-- Bayesian-adjusted rating system
-- Proximity-based scoring with exponential decay
-- Cuisine preference matching with hard filters
-- Novelty tracking to prevent recommendation fatigue
-- Price range filtering
+## Run in a browser
 
-📍 **Location Services**
+Requires Node.js 20.19+, npm, and Python 3.11 for the free data reader. From the project root:
 
-- Real-time location tracking
-- Radius-based restaurant search (500m to 5km)
-- Distance calculation using Haversine formula
-
-🗺️ **Multiple Interfaces**
-
-- **Home Screen**: Ranked list view with filtering
-- **Map View**: Visual representation with color-coded markers
-- **Detail View**: Comprehensive restaurant information
-- **Preferences**: Customizable user settings and history
-
-🎨 **Beautiful UI**
-
-- Dark theme with warm accent colors
-- Smooth animations and transitions
-- Responsive design for all screen sizes
-- Skeleton loaders for perceived performance
-
-🔄 **Global State Management**
-
-- Zustand for lightweight state
-- Persistent visit history
-- User preference management
-
-## Project Structure
-
-```
-RestaurantFinder/
-├── src/
-│   ├── algorithm/
-│   │   └── RecommendationEngine.ts    # Core multi-factor scoring
-│   ├── api/
-│   │   └── places.ts                  # Google Places + OpenStreetMap fallback
-│   ├── components/
-│   │   ├── RestaurantCard.tsx         # Main card component
-│   │   ├── CategoryPill.tsx           # Chip/tag component
-│   │   ├── RatingStars.tsx            # Star rating display
-│   │   └── SkeletonLoader.tsx         # Loading placeholders
-│   ├── hooks/
-│   │   ├── useLocation.ts             # Location access
-│   │   └── useRestaurants.ts          # Restaurant fetching
-│   ├── screens/
-│   │   ├── HomeScreen.tsx             # Main list view
-│   │   ├── MapScreen.tsx              # Map interface
-│   │   ├── DetailScreen.tsx           # Restaurant details
-│   │   └── PreferencesScreen.tsx      # Settings
-│   ├── store/
-│   │   └── useAppStore.ts             # Zustand global state
-│   ├── theme/
-│   │   └── index.ts                   # Colors, fonts, spacing
-│   └── types/
-│       └── index.ts                   # TypeScript interfaces
-├── App.tsx                            # Navigation setup
-├── app.json                           # Expo configuration
-└── .env                               # API key configuration
-```
-
-## Algorithm Details
-
-The recommendation engine uses **weighted multi-factor scoring** to rank restaurants:
-
-### Scoring Weights
-
-- **Proximity** (25%): Exponential decay based on distance
-- **Rating** (25%): Bayesian-adjusted to account for review count
-- **Preference** (30%): Cuisine match + dietary restrictions
-- **Novelty** (10%): Rewards unexplored cuisines and unvisited restaurants
-- **Price** (10%): Matches user's price range preference
-
-### Key Components
-
-**proximityScore**: Exponential decay function
-
-```
-score = e^(-distance / maxDistance)
-```
-
-**ratingScore**: Bayesian adjustment
-
-```
-adjusted = (25 * 3.5 + reviewCount * rating) / (25 + reviewCount)
-score = adjusted / 5
-```
-
-**preferenceScore**: Hard filters + soft scoring
-
-- Blocks avoided cuisines (score = 0)
-- Blocks unmet dietary restrictions
-- Matches favorite cuisines
-
-**noveltyScore**: Prevents recommendation fatigue
-
-- 30-day visit history window
-- Penalizes recently visited restaurants
-- Reduces score for frequently consumed cuisines
-
-**priceScore**: Budget matching
-
-- Returns 1.0 if in range, penalty otherwise
-
-## Installation & Setup
-
-### Prerequisites
-
-- Node.js >= 18
-- npm
-- Expo CLI
-- iOS/Android development environment (optional for simulator)
-
-### Quick Start
-
-1. **Navigate to project**
-
-```bash
-cd RestaurantFinder
-```
-
-2. **Install dependencies** (already done)
-
-```bash
+```sh
 npm install
+python3.11 -m venv .venv
+.venv/bin/pip install -r server/requirements.txt
+npx expo export --platform web
+node server/index.mjs
 ```
 
-3. **Configure API key** (Optional)
-   - Edit `.env` and add your Google Places API key
-   - If omitted, the app will use the free OpenStreetMap API
+Open **http://localhost:3000**. Allow location access, or explicitly search a city/neighborhood if location is unavailable. No API key is needed for the web version.
 
-4. **Start the development server**
+The Node server serves the exported app and same-origin restaurant, neighborhood, and menu requests. Run it alongside the web app: a static-only host cannot provide menu fetching. Re-export after changing application code. Set `PORT` to change the listening port; `WEB_DIST_DIR` can select a different export directory.
 
-```bash
-npx expo start
+The web app reads the free [Overture Maps open places dataset](https://docs.overturemaps.org/getting-data/overturemaps-py/) directly. It downloads only a bounded area, keeps public restaurant records in `.cache/open-places` for seven days, and reuses them for repeat searches. The first search in a new area can take a minute; searches within a downloaded area are faster. No account, API key, or paid provider is used. The cache holds at most 64 areas. Source snapshot dates are displayed with results.
+
+`OVERTURE_PYTHON` can select an existing environment containing the pinned reader. `OPEN_PLACES_CACHE_DIR` can relocate the public-data cache. On Windows, create the environment with your Python 3.11 executable and use `.venv\Scripts\pip` for installation.
+
+`FREE_PLACES_PROVIDER=overpass` selects the original public Overpass lookup instead; `OVERPASS_API_URL` can override its endpoint. Provider outages display an error; the app does not substitute invented restaurants.
+
+For live UI development, `npm run web` starts Expo. Its standalone development server does not implement the `/api` endpoints; use the exported app with the Node server to exercise the complete flow.
+
+For an external deployment, use HTTPS for browser location access. This repository does not include hosted infrastructure or deployment credentials.
+
+## Run on iOS or Android
+
+MMKV/Nitro requires a development build. EAS profiles are already configured:
+
+```sh
+npx eas-cli build --platform android --profile development
+# Or: npx eas-cli build --platform ios --profile development
+npm run start:dev-client
 ```
 
-5. **Run on simulator/device**
+Local native builds are available with `npx expo run:ios` or `npx expo run:android` when the platform toolchain is installed. Native device behavior still needs hardware verification.
 
-```bash
-# iOS Simulator
-npx expo run:ios
+## Data and matching
 
-# Android Emulator
-npx expo run:android
+- Visits, liked dishes, menus, and preferences persist locally. Native builds use MMKV; web builds use its browser storage implementation. Browser data belongs to that browser and origin, and clearing site data removes it.
+- Photos stay on the device. Browser photos are resized into data URIs and count against browser storage limits. JSON backups exclude photos.
+- Web restaurant data comes from Overture Maps open places; neighborhood search uses Photon. Native builds use free Overpass by default. Set `EXPO_PUBLIC_API_BASE_URL` to the app server’s reachable `/api` base URL to use Overture from a native development build. Public providers may be slow, rate-limited, incomplete, or unavailable.
+- Menu enrichment checks up to six candidate websites per search, follows one same-origin menu link, and caches results. Structured menu entries and price-bearing lines provide dish evidence; ordinary homepage headings do not.
+- Overture places include names, categories, coordinates, and available websites. The app does not invent ratings, opening hours, or prices when those are absent. Listings can be outdated or incomplete.
+- Similarity uses normalized dish words and cuisine preferences. It does not infer unseen dishes or guarantee current menu availability. JavaScript-only menus, PDFs, and image menus need manual entry.
+- Avoided cuisines and requested dietary tags are hard filters. Provider tags are incomplete and are not independently verified.
+- The web Map tab links saved neighborhoods to OpenStreetMap. Native builds retain their embedded map.
 
-# Physical device (scan QR code with Expo Go)
-# QR code displayed in terminal
-```
+## Personal use and contributions
 
-## Configuration
+This is a local-first app for personal use. It has no accounts or cross-device sync, and public data providers carry no availability guarantee. Export backups before changing browsers or devices. At larger scale, replace public demo services with appropriately provisioned providers.
 
-### Google Places API (Optional)
+Keep UI and device integrations in screens/hooks/API modules, and keep scoring/parsing functions pure in `src/algorithm`. Update the README when behavior changes. Never commit environment files, keys, local agent instructions, or generated exports.
 
-For better restaurant data and reviews, set up Google Places:
+Validate changes with:
 
-1. Go to https://console.cloud.google.com/
-2. Create a new project
-3. Enable the "Places API"
-4. Create an API key credential
-5. Add to `.env`: `EXPO_PUBLIC_GOOGLE_PLACES_KEY=your_key`
-
-### OpenStreetMap (Free, Default)
-
-The app automatically falls back to the free Overpass API if Google Places is not configured.
-
-## Theme Customization
-
-Edit `src/theme/index.ts` to customize:
-
-```typescript
-colors.background    # '#1A1A2E' - Dark background
-colors.accent        # '#F5A623' - Warm accent
-colors.text          # '#FFF8F0' - Light text
-typography.*         # Font sizes and weights
-spacing.*            # Padding/margin values
-borderRadius.*       # Rounding values
-shadows.*            # Shadow definitions
-```
-
-## Recommendation Algorithm Tuning
-
-Adjust weights in `RecommendationEngine.ts`:
-
-```typescript
-const WEIGHTS = {
-  proximity: 0.25, // Increase for location-heavy recommendations
-  rating: 0.25, // Increase to favor highly-rated restaurants
-  preference: 0.3, // Increase to respect cuisine preferences more
-  novelty: 0.1, // Increase to discover new places
-  price: 0.1, // Increase to strictly match budget
-};
-```
-
-## Type Definitions
-
-Core types in `src/types/index.ts`:
-
-```typescript
-Restaurant          # Basic restaurant data
-UserPreferences     # User settings
-ScoredRestaurant    # Restaurant + recommendation score
-ScoreBreakdown      # Individual score components
-VisitRecord         # User visit history
-```
-
-## Performance Notes
-
-- Restaurants are cached in memory during session
-- Distance calculations use optimized Haversine formula
-- Skeleton loaders provide perceived performance
-- FlatList with key optimization for large lists
-- Memoized components prevent unnecessary re-renders
-
-## Testing
-
-The recommendation algorithm is thoroughly tested. Key test cases:
-
-1. Avoided cuisines return score 0 ✓
-2. Close restaurant beats distant high-quality one ✓
-3. Recently visited scores lower than unvisited ✓
-4. 5-star/1-review loses to 4.5-star/200-reviews ✓
-5. No preferences = proximity + rating only ✓
-
-## Future Enhancements
-
-- [x] Offline caching with MMKV
-- [x] "Surprise me" random pick feature
-- [ ] Share restaurant as image
-- [ ] Dark/light mode toggle
-- [ ] ML-based collaborative filtering
-- [ ] Push notifications for special offers
-- [ ] Social features (share with friends)
-- [ ] Restaurant hours integration
-- [ ] Menu browsing
-- [ ] Table reservation integration
-
-## Menu Intelligence
-
-- Imported restaurant menus and selected menu items persist locally with MMKV
-- Menu URLs can be pasted into the detail screen for structured item import
-- Selected items power two outputs: similar restaurants and restaurants that serve the same items
-
-## Discovery Shortcuts
-
-- The Home screen includes a "Surprise me" action that picks a weighted random restaurant from the current ranked matches
-
-## Permissions
-
-The app requires:
-
-- **Location**: To find restaurants near you
-- **Network**: To fetch restaurant data
-
-All permissions are requested at runtime with user-friendly explanations.
-
-## Troubleshooting
-
-**Location not working?**
-
-- Check system location services are enabled
-- Grant location permission in app settings
-- Try "Precise location" if available
-
-**No restaurants found?**
-
-- Ensure location services are working
-- Check internet connection
-- Try adjusting distance and filter settings
-- Consider enabling Google Places API for better coverage
-
-**App crashes on startup?**
-
-- Clear cache: `npx expo start --clear`
-- Delete node_modules: `rm -rf node_modules && npm install`
-- Check TypeScript errors: `npx tsc --noEmit`
-
-## Performance Tips
-
-- Use the MapView for density visualization
-- Adjust maxDistance to reduce API load
-- Restaurant data is re-fetched when navigating back to Home
-
-## Deployment
-
-For production deployment:
-
-```bash
-# Build for iOS
-eas build --platform ios
-
-# Build for Android
-eas build --platform android
-
-# Build for web
+```sh
+npm run type-check
+npm test -- --runInBand --watchman=false
+node --test server/*.test.mjs
+python3 -m unittest discover -s server -p '*_test.py'
 npx expo export --platform web
 ```
 
-## Architecture Decisions
+The server protects menu fetching with public-address validation, connection address pinning, redirect checks, response/time limits, and request limits. It does not store visits or liked dishes. It is intended for personal use; public multi-user hosting needs operational capacity planning.
 
-1. **Zustand over Redux**: Lightweight, perfect for this scope
-2. **Expo over bare RN**: Simplified setup and deployment
-3. **Overpass fallback**: No API keys required for basic functionality
-4. **Bayesian rating**: Scientific approach to rating adjustment
-5. **30-day novelty window**: Balances discovery with satisfaction
-
-## Contributing
-
-Feel free to fork, modify, and improve!
+See [architecture and tradeoffs](projects/tradeoff/architecutre/README.md) for the domain pipeline and design decisions.
 
 ## License
 
-MIT
-
----
-
-**Created with ❤️ for restaurant discovery enthusiasts**
+MIT — see [LICENSE](LICENSE).
